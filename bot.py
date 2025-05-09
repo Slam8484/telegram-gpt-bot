@@ -1,41 +1,55 @@
 import os
-import openai
-from aiogram import Bot, Dispatcher, types, executor
+from aiogram import Bot, Dispatcher, types
+from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import Message
+from aiogram.utils.token import check_token
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram import Router
+from aiogram.runner import Runner
+from aiogram.filters import CommandStart
 from dotenv import load_dotenv
+import openai
 
-# Загружаем токены из .env файла
+# Загружаем переменные среды
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Настройка OpenAI
+# Настройка OpenAI через DeepInfra
 openai.api_base = "https://api.deepinfra.com/v1/openai"
 openai.api_key = OPENAI_API_KEY
 
-# Инициализация Telegram бота
-bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher(bot)
+# Инициализация
+router = Router()
+storage = MemoryStorage()
+session = AiohttpSession()
+bot = Bot(token=TELEGRAM_TOKEN, session=session, parse_mode=ParseMode.HTML)
+dp = Dispatcher(storage=storage)
+dp.include_router(router)
 
-@dp.message_handler(commands=['start'])
-async def start_command(message: types.Message):
-    await message.reply("👋 Привет, Вячеслав!\nЯ бот на базе GPT. Напиши мне любой вопрос, и я постараюсь помочь!")
+@router.message(CommandStart())
+async def cmd_start(message: Message):
+    await message.answer("Привет! Я GPT-бот. Напиши мне что-нибудь, и я отвечу!")
 
-@dp.message_handler()
-async def handle_message(message: types.Message):
-    print("Пользователь:", message.text)
+@router.message()
+async def handle_message(message: Message):
     try:
+        print("Пользователь:", message.text)
+
         response = openai.ChatCompletion.create(
             model="mistralai/Mistral-7B-Instruct-v0.2",
             messages=[{"role": "user", "content": message.text}]
         )
-        reply_text = response['choices'][0]['message']['content']
+        reply_text = response["choices"][0]["message"]["content"]
         print("Ответ GPT:", reply_text)
-        await message.reply(reply_text)
+        await message.answer(reply_text)
+
     except Exception as e:
         print("Ошибка:", e)
-        await message.reply("⚠️ Ошибка при обработке запроса.")
-        print("Ошибка:", e)
+        await message.answer("⚠️ Ошибка при обработке запроса.")
+
 
 if __name__ == '__main__':
-    print("🤖 Бот запущен и ждет сообщений...")
-    executor.start_polling(dp)
+    runner = Runner(dp, bot=bot)
+    runner.run_polling(reset_webhook=True)
