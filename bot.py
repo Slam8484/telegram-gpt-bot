@@ -3,7 +3,6 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Message
-from aiogram.utils.token import check_token
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram import Router
 from aiogram.runner import Runner
@@ -50,6 +49,17 @@ async def handle_message(message: Message):
         await message.answer("⚠️ Ошибка при обработке запроса.")
 
 
-if __name__ == '__main__':
-    runner = Runner(dp, bot=bot)
-    runner.run_polling(reset_webhook=True)
+
+# 🧠 Основной запуск бота
+async def main():
+    bot = Bot(token=TELEGRAM_TOKEN)
+    storage = MemoryStorage()
+    dp = Dispatcher(storage=storage)
+    dp.include_router(router)
+
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
